@@ -79,6 +79,8 @@ def run_local_test(track_id, seed, max_steps, frame_skip, render_mode="human"):
             seed=seed,
             options={"track_id": track_id},
         )
+        print(track_id, "번째 트랙이 선택되었습니다.")
+
         start_time = env.unwrapped.t
         safe_reset(agent, observation)
 
