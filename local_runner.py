@@ -4,7 +4,6 @@ from threading import Thread
 import numpy as np
 from gymnasium.wrappers import TimeLimit
 
-from agent import Agent
 from core.vendor.car_racing import CarRacing
 from env_wrapper import CarEnvironment
 
@@ -13,6 +12,15 @@ DEFAULT_AGENT_TIMEOUT_SECONDS = 5.0
 MAX_INVALID_ACTIONS = 10
 NO_OP_ACTION = np.array([0.0, 0.0, 0.0], dtype=np.float32)
 GAME_VARIABLES_VERSION = "variables-6"
+
+
+def load_agent(agent_name):
+    """Load either the submission agent or the preserved PID controller."""
+    if agent_name == "pid":
+        from pid_agent import Agent
+    else:
+        from agent import Agent
+    return Agent
 
 
 def safe_act(agent, observation, timeout_sec=DEFAULT_AGENT_TIMEOUT_SECONDS):
@@ -59,7 +67,14 @@ def safe_reset(agent, observation, timeout_sec=DEFAULT_AGENT_TIMEOUT_SECONDS):
         raise outcome[0]
 
 
-def run_local_test(track_id, seed, max_steps, frame_skip, render_mode="human"):
+def run_local_test(
+    track_id,
+    seed,
+    max_steps,
+    frame_skip,
+    render_mode="human",
+    agent_name="default",
+):
     print("=== 시작: 로컬 환경 테스트 ===")
 
     raw_frame_budget = max_steps * frame_skip + 200
@@ -72,8 +87,8 @@ def run_local_test(track_id, seed, max_steps, frame_skip, render_mode="human"):
     )
 
     try:
-        print("에이전트를 초기화합니다...")
-        agent = Agent()
+        print(f"에이전트를 초기화합니다: {agent_name}")
+        agent = load_agent(agent_name)()
 
         observation, info = env.reset(
             seed=seed,
@@ -122,6 +137,7 @@ def run_local_test(track_id, seed, max_steps, frame_skip, render_mode="human"):
         finish_time_s = env.unwrapped.finish_time_s
         finish_qualified = env.unwrapped.finish_qualified_time_s is not None
         completed = finish_time_s is not None
+        elapsed_time_s = env.unwrapped.t - start_time
         lap_time_ms = round((finish_time_s - start_time) * 1000) if completed else None
         retire_reason = local_retire_reason or info.get("retire_reason")
         if not completed and retire_reason is None:
@@ -139,6 +155,7 @@ def run_local_test(track_id, seed, max_steps, frame_skip, render_mode="human"):
         print(f"progress: {progress:.6f}")
         print(f"finish qualified: {finish_qualified}")
         print(f"finish_time_s: {finish_time_s}")
+        print(f"elapsedTimeMs: {round(elapsed_time_s * 1000)}")
         print(f"lapTimeMs: {lap_time_ms}")
         print("FINISHED" if completed else "DNF")
         if retire_reason:
@@ -149,10 +166,16 @@ def run_local_test(track_id, seed, max_steps, frame_skip, render_mode="human"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="2026 HAIC 공식 로컬 주행 환경")
-    parser.add_argument("--track-id", type=int, default=1)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--track-id", type=int, default=1849)
+    parser.add_argument("--seed", type=int, default=7367)
     parser.add_argument("--max-steps", type=int, default=2000)
     parser.add_argument("--frame-skip", type=int, default=4)
+    parser.add_argument(
+        "--agent",
+        choices=("default", "pid"),
+        default="default",
+        help="default는 agent.py, pid는 pid_agent.py를 사용합니다.",
+    )
     parser.add_argument(
         "--no-render",
         action="store_true",
@@ -165,4 +188,5 @@ if __name__ == "__main__":
         args.max_steps,
         args.frame_skip,
         render_mode=None if args.no_render else "human",
+        agent_name=args.agent,
     )
